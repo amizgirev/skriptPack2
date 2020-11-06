@@ -1,0 +1,7 @@
+
+Version 0.2
+-----------
+
+- Konzeption der neuen Version
+1. Konfiguration der Dienste soll unabhängig von Installation der Dienste stattfinden -> im Fall z.B. wenn eine VM mit allen Diensten etc. geclont wird
+2. Da der Script für die Konfiguration aller Dienste (Web, DSWeb, DLWeb, Datenleser, etc.) dienen soll, ist die Idee alle Konfigurationsdateien als JSON einzulesen
