@@ -11,38 +11,75 @@
 
 [CmdletBinding()]
 param (
-    [Parameter()]
-    [String] $ribConfigsPath = "C:\arbeit\automatisierung\ps-scripts\configTools\servicesConfigs\RIB_configs.properties",
-    [Parameter()]
-    [String] $dbFilePath = "C:\arbeit\automatisierung\ps-scripts\configTools\itwosite_web\servicesConfigs\db.properties",
-    [Parameter()]
-    [String] $log4jFilePath = "C:\arbeit\automatisierung\ps-scripts\configTools\servicesConfigs\iTWOsite_Web\itwosite\log4j.properties",
-    [Parameter()]
-    [String] $outputFilePath = "C:\arbeit\automatisierung\ps-scripts\configTools\servicesConfigs\iTWOsite_Web\itwosite\log4j_output.properties",
-    [Parameter()]
-    [String] $fileType = "properties"
+    ## SHARE DRIVE ##
+    #[Parameter(Mandatory)]
+    [String] $server = "riblstickylos.file.core.windows.net",
+    #[Parameter(Mandatory)]
+    [String] $serverUser = "Azure\riblstickylos",
+    #[Parameter(Mandatory)]
+    [String] $serverPass = "6gf118BCU2Fx7GSEwzGPJU031qhqA0auJujAoxiJanHcZs8Tc8xzlWMHVnuw7OAZVX2aPEsVr2lQStIz/0sUog==",
+    #[Parameter(Mandatory)]
+    [String] $serverShareFile = "data",
+    [string] $serverShareDrive = "\\$server\$serverShareFile",
+
+    ## SERVICE NAME ##
+    #[Parameter(Mandatory)]
+    [ValidateSet('iTWOsite_Web','iTWOsite_DSWeb','iTWOsite_DLWeb')]
+    [String[]] $serviceNames = @('iTWOsite_DSWeb'), #, 'iTWOsite_DSWeb', 'iTWOsite_DLWeb'),
+    
+    [string] $toolsRoot = "C",
+    [string] $ribToolsPath = "$($toolsRoot):\RIBTools",
+    [string] $externalToolsPath = "$($toolsRoot):\ExternalTools"
+
 )
 
 $modulePath = Get-Location
-Import-Module -Name "$modulePath\propertiesProcessing.ps1"
+Import-Module -Name "$modulePath\functions.psm1"
 
 
 ##### MAIN #####
 
-$ribConfigs = readFileToHashtable -fileType "properties" -filePath $ribConfigsPath
-$serviceConfigs = readFileToHashtable -fileType $fileType -filePath $log4jFilePath
-changeConfigs -serviceConfigs $serviceConfigs -ribConfigs $ribConfigs
-writeChangedConfigs -binarConfig $serviceConfigs -outputFilePath $outputFilePath
+Get-Date -Format "dd.MM.yyyy HH:mm:ss"
+$strartTime = Get-Date
+
+## mount Share device
+if (!(Test-Path $serverShareDrive)) {
+    Import-Module -Name "C:\MyTools\vscode\installVMTools\functions.psm1"
+    mountNetworkDevice -computerName $server `
+                        -user $serverUser `
+                        -pass $serverPass `
+                        -shareFile $serverShareDrive
+    Get-Module "C:\MyTools\vscode\installVMTools\functions.psm1" -ListAvailable | Remove-Module
+} #>
+
+
+
+
+# $ribConfigs = readFileToHashtable -fileType "properties" -filePath $ribConfigsPath
+# $serviceConfigs = readFileToHashtable -fileType $fileType -filePath $log4jFilePath
+# changeConfigs -serviceConfigs $serviceConfigs -ribConfigs $ribConfigs
+# writeChangedConfigs -binarConfig $serviceConfigs -outputFilePath $outputFilePath
 
 
 Write-Host "`n---------- AUSGABENBEREICH ----------`n"
+Write-Host "Davor: TEST`n"
 
-Write-Host "Davor: TEST"
-$ribConfigs
-Write-Host "Danach: TEST"
 
+foreach ($serviceName in $serviceNames) {
+    $configFiles = Get-ChildItem -Path "$ribToolsPath\$serviceName" -Include "*.xml","*.properties" -Depth 1 `
+    | Where-Object { $_.DirectoryName -eq "$ribToolsPath\$serviceName\conf" `
+                        -or $_.DirectoryName -eq "$ribToolsPath\$serviceName\itwosite" }
+    
+    $jsonConfigs = loadConfigsFromJson -filePath "$serverShareDrive\TMP" -filter "RIB_configs.json" -node $serviceName
+    
+    processConfigs -configsAsJson $jsonConfigs -configFiles $configFiles
+
+}
+
+
+Write-Host "`nDanach: TEST"
 Write-Host "`n---------- AUSGABENBEREICH ----------`n"
 
 
-
-Get-Module "$modulePath\propertiesProcessing.ps1" -ListAvailable | Remove-Module
+Write-Host "Laufzeit der Anwendung: $(New-TimeSpan -Start $strartTime -End (get-date))"
+Get-Module "$modulePath\functions.psm1" -ListAvailable | Remove-Module
