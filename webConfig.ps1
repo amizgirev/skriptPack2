@@ -28,8 +28,7 @@ param (
     [String[]] $serviceNames = @('iTWOsite_DSWeb', 'iTWOsite_Web', 'iTWOsite_DLWeb'),
     
     [string] $toolsRoot = "C",
-    [string] $ribToolsPath = "$($toolsRoot):\RIBTools",
-    [string] $externalToolsPath = "$($toolsRoot):\ExternalTools"
+    [string] $ribToolsPath = "$($toolsRoot):\RIBTools"
 
 )
 
@@ -53,14 +52,6 @@ if (!(Test-Path $serverShareDrive)) {
 } #>
 
 
-
-
-# $ribConfigs = readFileToHashtable -fileType "properties" -filePath $ribConfigsPath
-# $serviceConfigs = readFileToHashtable -fileType $fileType -filePath $log4jFilePath
-# changeConfigs -serviceConfigs $serviceConfigs -ribConfigs $ribConfigs
-# writeChangedConfigs -binarConfig $serviceConfigs -outputFilePath $outputFilePath
-
-
 Write-Host "`n---------- AUSGABENBEREICH ----------`n"
 Write-Host "Davor: TEST`n"
 
@@ -75,7 +66,6 @@ foreach ($serviceName in $serviceNames) {
         
         processConfigs -serviceName $serviceName `
                         -parentPath $ribToolsPath `
-                        -serverShareDrive "$serverShareDrive\TMP" `
                         -configsAsJson $jsonConfigs `
                         -configFiles $configFiles
     }

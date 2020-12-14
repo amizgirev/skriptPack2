@@ -51,7 +51,6 @@
             param (
                 [string] $serviceName,
                 [string] $parentPath,
-                [string] $serverShareDrive,
                 [System.Object] $configsAsJson,
                 [System.Array] $configFiles
             )
@@ -61,18 +60,18 @@
                     if ($configFile.Extension -eq ".xml") {
                         changeXML -serviceName $serviceName -parentPath $parentPath -configsAsJson $configsAsJson -configFile $configFile
                     } elseif ($configFile.Extension -eq ".properties") {
-                        # $serviceConfigsToChange = propertiesToHashtable -filePath "$($configFile.FullName)"
-                        # $configsToEnter = convertJsonToHashtable -jsonObj $($configsAsJson[0]."$($configFile.Name)")
+                        $serviceConfigsToChange = propertiesToHashtable -filePath "$($configFile.FullName)"
+                        $configsToEnter = convertJsonToHashtable -jsonObj $($configsAsJson[0]."$($configFile.Name)")
                         
-                        # $changedConfigs = changeProperties -serviceConfigsToChange $serviceConfigsToChange -configsToEnter $configsToEnter
-                        # writeChangedConfigs -binarConfig $changedConfigs -outputFilePath "$($configFile.FullName)"
+                        $changedConfigs = changeProperties -serviceConfigsToChange $serviceConfigsToChange -configsToEnter $configsToEnter
+                        writeChangedConfigs -binarConfig $changedConfigs -outputFilePath "$($configFile.FullName)"
                     }
                 }
             } #>
         }
     ### processConfigs() Method ________________________________
 
-    ### ReplaceXML() Method ********************************
+    ### changeXML() Method ********************************
         function changeXML {
             [CmdletBinding()]
             param (
@@ -136,7 +135,7 @@
                 } # foreach ($jsonConfig in $jsonConfigsToEnter)
             } # foreach ($configFileName in $configFileNames)
         }
-    ### processConfigs() Method ________________________________
+    ### changeXML() Method ________________________________
 
     ### ReplaceXML() Method ********************************
         Function ReplaceXML {
