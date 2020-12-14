@@ -49,6 +49,9 @@
         function processConfigs {
             [CmdletBinding()]
             param (
+                [string] $serviceName,
+                [string] $parentPath,
+                [string] $serverShareDrive,
                 [System.Object] $configsAsJson,
                 [System.Array] $configFiles
             )
@@ -56,20 +59,127 @@
             foreach ($configFile in $configFiles) {
                 if ($configsAsJson."$($configFile.Name)") {
                     if ($configFile.Extension -eq ".xml") {
-                        [xml] $serviceConfigs = Get-Content -Path "$($configFile.FullName)"
-                        $nodes = $serviceConfigs.ChildNodes
-                        $attributes = $serviceConfigs.Attributes
+                        changeXML -serviceName $serviceName -parentPath $parentPath -configsAsJson $configsAsJson -configFile $configFile
                     } elseif ($configFile.Extension -eq ".properties") {
-                        $serviceConfigs = propertiesToHashtable -filePath "$($configFile.FullName)"
-                        $configsToEnter = convertJsonToHashtable -jsonObj $($configsAsJson[0]."$($configFile.Name)")
+                        # $serviceConfigsToChange = propertiesToHashtable -filePath "$($configFile.FullName)"
+                        # $configsToEnter = convertJsonToHashtable -jsonObj $($configsAsJson[0]."$($configFile.Name)")
                         
-                        $changedConfigs = changeProperties -serviceConfigsToChange $serviceConfigs -configsToEnter $configsToEnter
-                        writeChangedConfigs -binarConfig $changedConfigs -outputFilePath "$($configFile.FullName)_test"
+                        # $changedConfigs = changeProperties -serviceConfigsToChange $serviceConfigsToChange -configsToEnter $configsToEnter
+                        # writeChangedConfigs -binarConfig $changedConfigs -outputFilePath "$($configFile.FullName)"
                     }
                 }
             } #>
         }
     ### processConfigs() Method ________________________________
+
+    ### ReplaceXML() Method ********************************
+        function changeXML {
+            [CmdletBinding()]
+            param (
+                [string] $serviceName,
+                [string] $parentPath,
+                [System.Object] $configsAsJson,
+                [System.IO.FileSystemInfo] $configFile
+            )
+            
+            $configFileNames = $configsAsJson `
+                                | Get-Member -MemberType Properties `
+                                | Select-Object -ExpandProperty Name `
+                                | Where-Object { $_ -eq $configFile.Name}
+
+            foreach ($configFileName in $configFileNames) {
+                # $configFile = Get-ChildItem -Path "$parentPath\$serviceName" -Filter $configFileName -Depth 1 `
+                #                 | Where-Object { $_.DirectoryName -eq "$parentPath\$serviceName\conf" `
+                #                         -or $_.DirectoryName -eq "$parentPath\$serviceName\itwosite" }
+                if (($configFile -ne $null) -and (Test-Path -Path $($configFile.FullName))) {
+                    Copy-Item -Path $($configFile.FullName) -Destination "$($configFile.FullName).bak"
+                }
+
+                $jsonConfigsToEnter = $configsAsJson.$configFileName
+                foreach ($jsonConfig in $jsonConfigsToEnter) {
+                    $xmlNodesFromJson = $jsonConfig | Get-Member -MemberType Properties | Select-Object -ExpandProperty Name
+                    foreach ($xmlNode in $xmlNodesFromJson) {
+                        $elemToEnter = $configsAsJson.$configFileName.$xmlNode
+                        foreach ($elem in $elemToEnter) {
+                            if ($elem -ne $null) {
+                                $tmp = convertJsonToHashtable -jsonObj $elem
+                                switch ($configFileName) {
+                                    "hibernate.cfg.xml" {
+                                        ReplaceXML -path $($configFile.FullName) -xmlpath "$xmlNode[@name=`"$($tmp.Keys)`"]" -newValue $tmp.Values
+                                        break;
+                                    }
+                                    "log4j2.xml" {
+                                        ReplaceXML -path $($configFile.FullName) -xmlpath "$xmlNode[@name=`"$($tmp.Keys)`"]" -newValue $tmp.Values
+                                        break;
+                                    }
+                                    "server.xml" {
+                                        # if ($xmlNode -eq "Server/Service/Engine/Host/Valve") {
+                                            ReplaceXML -path $($configFile.FullName) -xmlpath $xmlNode -attribute $($tmp.Keys) -newValue $tmp.Values
+                                        # }
+                                        # ReplaceXML -path $($configFile.FullName) -xmlpath "$xmlNode[@name=`"$($tmp.Keys)`"]" -newValue $tmp.Values
+                                        break;
+                                    }
+                                    "context.xml" {
+                                        [xml] $xmlConfig = Get-Content -Path $($configFile.FullName)
+                                        if (!($xmlConfig.SelectSingleNode($xmlNode))) {
+                                            $xmlConfig.Context.AppendChild($xmlConfig.CreateNode("element", "Resources", ""))
+                                            $xmlConfig.Save($($configFile.FullName))
+                                        }
+                                        ReplaceXML -path $($configFile.FullName) -xmlpath $xmlNode -attribute $($tmp.Keys) -newValue $tmp.Values
+                                        break;
+                                    }
+                                    Default {}
+                                } # switch
+                            }
+                        } # foreach ($elem in $elemToEnter)
+                    } # foreach ($xmlNode in $xmlNodesFromJson)
+                } # foreach ($jsonConfig in $jsonConfigsToEnter)
+            } # foreach ($configFileName in $configFileNames)
+        }
+    ### processConfigs() Method ________________________________
+
+    ### ReplaceXML() Method ********************************
+        Function ReplaceXML {
+            [CmdletBinding()]
+            param (
+                [String]$path,
+                [String]$xmlpath,
+                [String]$attribute,
+                [String]$newValue
+            )
+            $Model = [xml]''
+            $Model.Load($path)
+            $node = SelectXMLNode -xml $Model -xmlpath $xmlpath
+            if ($attribute) {
+                Write-Verbose "Old: $($node.GetAttribute($attribute))"
+                $node.SetAttribute($attribute, $newValue)
+                Write-Verbose "New: $($node.GetAttribute($attribute))"
+            }
+            else {        
+                Write-Verbose "Old $($node.InnerText)"
+                $node.InnerText = $newValue
+                Write-Verbose "New: $($node.InnerText)"
+            }
+            $Model.Save($path)
+        }
+    ### ReplaceXML() Method ________________________________
+
+    ### SelectXMLNode() Method ********************************
+        Function SelectXMLNode {
+            [CmdletBinding()]
+            Param(
+                [xml]$xml, 
+                [String]$xmlnamespace # would be xx for the following example        
+                ,
+                [String]$xmlpath # sth. like 'xx:DataSchemaModel/xx:Model/xx:Element/xx:Property[@Name="Collation"]'
+            )
+            $NameTable = $xml.Psbase.NameTable
+            $mgr = new-object System.Xml.XmlNamespaceManager($NameTable)
+            $mgr.AddNamespace($xmlnamespace, $xml.DocumentElement.NamespaceURI)
+            $node = $xml.SelectNodes($xmlpath, $mgr)
+            $node    
+        }
+    ### SelectXMLNode() Method ________________________________
         
     ### convertJsonToHashtable() Method ********************************
     function convertJsonToHashtable {
@@ -91,13 +201,13 @@
         param (
             [String] $filePath
         )
-        $propertiesConfigs = Get-Content $filePath | ConvertFrom-StringData #-Delimiter '='
-        $propertiesHashtable = @{}
-        for ($i = 0; $i -lt $propertiesConfigs.Length; $i++) {
-            try { $propertiesHashtable.Add($propertiesConfigs.Keys[$i], $propertiesConfigs.Values[$i]) }
-            catch { } #$counter++; Write-Host "$($i): $($propertiesConfigs[$i].Keys)" }
+        $binaryConfigs = Get-Content $filePath | ConvertFrom-StringData #-Delimiter '='
+        $hashtable = @{}
+        for ($i = 0; $i -lt $binaryConfigs.Length; $i++) {
+            try { $hashtable.Add($binaryConfigs.Keys[$i], $binaryConfigs.Values[$i]) }
+            catch { } #$counter++; Write-Host "$($i): $($binaryConfigs[$i].Keys)" }
         }
-        return $propertiesHashtable
+        return $hashtable
     }
     ### propertiesToHashtable() Method ________________________________
     
@@ -133,7 +243,11 @@
             [String] $outputFilePath
         )
         
-        foreach ($item in $binarConfig.GetEnumerator()) { # | Sort-Object -Property Key) {
+        if (Test-Path $outputFilePath) {
+            Move-Item -Path $outputFilePath -Destination "$outputFilePath.bak"
+        }
+
+        foreach ($item in $binarConfig.GetEnumerator() | Sort-Object -Property Key) {
             Add-Content $outputFilePath "$($item.Key)=$($item.Value)"
         }
     }

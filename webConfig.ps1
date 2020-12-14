@@ -25,7 +25,7 @@ param (
     ## SERVICE NAME ##
     #[Parameter(Mandatory)]
     [ValidateSet('iTWOsite_Web','iTWOsite_DSWeb','iTWOsite_DLWeb')]
-    [String[]] $serviceNames = @('iTWOsite_DSWeb'), #, 'iTWOsite_DSWeb', 'iTWOsite_DLWeb'),
+    [String[]] $serviceNames = @('iTWOsite_DSWeb', 'iTWOsite_Web', 'iTWOsite_DLWeb'),
     
     [string] $toolsRoot = "C",
     [string] $ribToolsPath = "$($toolsRoot):\RIBTools",
@@ -66,14 +66,19 @@ Write-Host "Davor: TEST`n"
 
 
 foreach ($serviceName in $serviceNames) {
-    $configFiles = Get-ChildItem -Path "$ribToolsPath\$serviceName" -Include "*.xml","*.properties" -Depth 1 `
-    | Where-Object { $_.DirectoryName -eq "$ribToolsPath\$serviceName\conf" `
-                        -or $_.DirectoryName -eq "$ribToolsPath\$serviceName\itwosite" }
-    
-    $jsonConfigs = loadConfigsFromJson -filePath "$serverShareDrive\TMP" -filter "RIB_configs.json" -node $serviceName
-    
-    processConfigs -configsAsJson $jsonConfigs -configFiles $configFiles
-
+    if (Test-Path -Path "$ribToolsPath\$serviceName") {
+        $configFiles = Get-ChildItem -Path "$ribToolsPath\$serviceName" -Include "*.xml","*.properties" -Depth 1 `
+                            | Where-Object { $_.DirectoryName -eq "$ribToolsPath\$serviceName\conf" `
+                            -or $_.DirectoryName -eq "$ribToolsPath\$serviceName\itwosite" }
+        
+        $jsonConfigs = loadConfigsFromJson -filePath "$serverShareDrive\TMP" -filter "RIB_configs.json" -node $serviceName
+        
+        processConfigs -serviceName $serviceName `
+                        -parentPath $ribToolsPath `
+                        -serverShareDrive "$serverShareDrive\TMP" `
+                        -configsAsJson $jsonConfigs `
+                        -configFiles $configFiles
+    }
 }
 
 
