@@ -25,14 +25,14 @@ param (
     ## SERVICE NAME ##
     #[Parameter(Mandatory)]
     [ValidateSet('iTWOsite_Web','iTWOsite_DSWeb','iTWOsite_DLWeb')]
-    [String[]] $serviceNames = @('iTWOsite_DSWeb', 'iTWOsite_Web', 'iTWOsite_DLWeb'),
+    [String[]] $serviceNames = @('iTWOsite_DLWeb'),
     
     [string] $toolsRoot = "C",
     [string] $ribToolsPath = "$($toolsRoot):\RIBTools"
 
 )
 
-$modulePath = Get-Location
+$modulePath = $PSScriptRoot
 Import-Module -Name "$modulePath\functions.psm1"
 
 
@@ -41,7 +41,7 @@ Import-Module -Name "$modulePath\functions.psm1"
 Get-Date -Format "dd.MM.yyyy HH:mm:ss"
 $strartTime = Get-Date
 
-## mount Share device
+<## mount Share device
 if (!(Test-Path $serverShareDrive)) {
     Import-Module -Name "C:\MyTools\vscode\installVMTools\functions.psm1"
     mountNetworkDevice -computerName $server `
